@@ -1,0 +1,5 @@
+flask
+pymongo
+pillow
+pillow_heif
+piexif
