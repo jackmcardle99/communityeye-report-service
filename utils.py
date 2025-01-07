@@ -51,10 +51,6 @@ def decimal_coords(coords, ref):
         decimal_degrees = -1 * decimal_degrees
     return decimal_degrees
 
-# def determine_authority():
-#     # info_dict = {
-#     #     "filename": image.filename
-#     # }
 
 # iPhone creates heic images, so they need to be converted first
 def convert_image_heic(heic_path, jpg_path, output_quality) -> tuple:
