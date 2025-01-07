@@ -1,3 +1,3 @@
-__pycache__
-.venv
-/media
+__pycache__/
+.venv/
+media/
