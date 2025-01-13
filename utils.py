@@ -40,16 +40,17 @@ def get_image_geolocation(image_path):
     exifdata = image.getexif()
     gpsinfo = exifdata.get_ifd(GPSINFO_TAG)
     
-    return {'Lat': '{0}'.format(decimal_coords(gpsinfo[2], gpsinfo[1])),
-            'Lon': '{0}'.format(decimal_coords(gpsinfo[4], gpsinfo[3]))
-        }
+    return {
+        'Lat': decimal_coords(gpsinfo[2], gpsinfo[1]),
+        'Lon': decimal_coords(gpsinfo[4], gpsinfo[3])
+    }
 
 
 def decimal_coords(coords, ref):
     decimal_degrees = float(coords[0]) + float(coords[1]) / 60 + float(coords[2]) / 3600
     if ref == "S" or ref =='W' :
         decimal_degrees = -1 * decimal_degrees
-    return decimal_degrees
+    return round(decimal_degrees, 6)
 
 
 # iPhone creates heic images, so they need to be converted first

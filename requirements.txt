@@ -3,3 +3,4 @@ pymongo
 pillow
 pillow_heif
 piexif
+turfpy

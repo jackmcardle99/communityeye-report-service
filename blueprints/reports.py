@@ -1,24 +1,27 @@
 from flask import Blueprint, app, jsonify, make_response, request
 import globals
 from bson import ObjectId
-from utils import upload_image, determine_local_authority
+from utils import upload_image
 from werkzeug.utils import secure_filename
 import os
 import time
+from turfpy.measurement import boolean_point_in_polygon
+from geojson import Point, Feature, Polygon
 
 
 reports_bp = Blueprint('reports_bp', __name__)
 reports = globals.db.reports
-
+authorities = globals.db.authorities
 
 @reports_bp.route('/api/v1/reports', methods=['POST'])
 def create_report():
     if 'image' not in request.files:
         # add logging
-        return make_response(jsonify({'Bad Request': 'No image was provided'}), 400)        
+        return make_response(jsonify({'Bad Request': 'No image was provided'}), 400)     
+      
     image = request.files['image']        
     image_data = upload_image(image)
-    authority = determine_local_authority(image_data["geolocation"])
+    authority = determine_authority(image_data["geolocation"]) 
     new_report = {
         "user_id": 1,
         "description": request.form['Description'],
@@ -41,9 +44,28 @@ def create_report():
     return make_response(jsonify({'url': url}), 200)
 
 
-def get_local_authorities(geolocation):
-    print("do stuff")
-    new
+def determine_authority(geolocation):
+    authorities_data = get_local_authorities()
+    
+    point = Feature(geometry=Point([geolocation['Lon'], geolocation['Lat']]))
+    
+    
+    for authority in authorities_data:                            
+        polygon = Feature(geometry=Polygon(authority['area']['coordinates']))
+        
+        if boolean_point_in_polygon(point, polygon):                
+            print(boolean_point_in_polygon(point, polygon))
+            print(authority['authority_name'])
+        
+
+
+def get_local_authorities():
+    authorities_data = []
+    for authority in authorities.find():
+        authority['_id'] = str(authority['_id'])
+        authorities_data.append(authority) 
+    return authorities_data
+    
 
     
     
