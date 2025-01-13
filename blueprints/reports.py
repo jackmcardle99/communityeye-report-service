@@ -21,7 +21,7 @@ def create_report():
       
     image = request.files['image']        
     image_data = upload_image(image)
-    authority = determine_authority(image_data["geolocation"]) 
+    authority = determine_report_authority(image_data["geolocation"]) 
     new_report = {
         "user_id": 1,
         "description": request.form['Description'],
@@ -44,18 +44,16 @@ def create_report():
     return make_response(jsonify({'url': url}), 200)
 
 
-def determine_authority(geolocation):
-    authorities_data = get_local_authorities()
+def determine_report_authority(geolocation):
+    authorities_data = get_local_authorities()    
     
-    point = Feature(geometry=Point([geolocation['Lon'], geolocation['Lat']]))
-    
-    
+    point = Feature(geometry=Point([geolocation['Lon'], geolocation['Lat']]))        
     for authority in authorities_data:                            
-        polygon = Feature(geometry=Polygon(authority['area']['coordinates']))
-        
+        polygon = Feature(geometry=Polygon(authority['area']['coordinates']))        
         if boolean_point_in_polygon(point, polygon):                
-            print(boolean_point_in_polygon(point, polygon))
-            print(authority['authority_name'])
+            
+            authority_name = authority['authority_name']
+            
         
 
 
