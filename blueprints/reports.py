@@ -13,6 +13,17 @@ reports_bp = Blueprint('reports_bp', __name__)
 reports = globals.db.reports
 authorities = globals.db.authorities
 
+
+@reports_bp.route('/api/v1/reports', methods=['GET'])
+def get_reports():
+    
+    data = []
+    for report in reports.find():
+        report['_id'] = str(report['_id'])
+        data.append(report)
+    return make_response(jsonify(data))
+
+
 @reports_bp.route('/api/v1/reports', methods=['POST'])
 def create_report():
     if 'image' not in request.files:
@@ -46,17 +57,16 @@ def create_report():
 
 def determine_report_authority(geolocation):
     authorities_data = get_local_authorities()    
-    
+    authority_name = ""
     point = Feature(geometry=Point([geolocation['Lon'], geolocation['Lat']]))        
     for authority in authorities_data:                            
         polygon = Feature(geometry=Polygon(authority['area']['coordinates']))        
-        if boolean_point_in_polygon(point, polygon):                
-            
-            authority_name = authority['authority_name']
-            
+        if boolean_point_in_polygon(point, polygon):                            
+            return authority['authority_name']
+    
+    
+         
         
-
-
 def get_local_authorities():
     authorities_data = []
     for authority in authorities.find():
