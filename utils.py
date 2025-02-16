@@ -6,6 +6,8 @@ import logging
 import globals as g
 
 def upload_image(image):
+    
+    print(image)
     # Save the uploaded image
     image_name = image.filename
     image_path = os.path.join(g.UPLOAD_FOLDER, image_name)  # Construct the full file path

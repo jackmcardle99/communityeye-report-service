@@ -69,7 +69,7 @@ def create_report():
 
     image = request.files['image']
     image_data = upload_image(image)
-
+    print(image_data)
     # Check if image_data is None or if geolocation is missing
     if image_data.get("geolocation") is None:
         delete_image(image_data['url'])
@@ -77,6 +77,7 @@ def create_report():
 
     if not is_within_boundaries(image_data["geolocation"]):
         delete_image(image_data['url'])
+        print("asdasdasdasdasda")
         return make_response(jsonify({'Bad Request': 'Geolocation is outside Northern Ireland'}), 400)
 
     authority = determine_report_authority(image_data["geolocation"])
