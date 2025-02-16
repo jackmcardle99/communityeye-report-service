@@ -58,8 +58,14 @@ def get_reports():
 #     return make_response(jsonify({'url': url}), 200)
 @reports_bp.route('/api/v1/reports', methods=['POST'])
 def create_report():
+    required_fields = ['description', 'category']
+    missing_fields = validate_fields(required_fields, request)
+    if missing_fields:
+        # logger.warning("Missing fields in registration data: %s", missing_fields)
+        return make_response(
+            jsonify({'Unprocessable Entity': 'Missing fields in JSON data.', 'missing_fields': missing_fields}), 422)
     if 'image' not in request.files:
-        return make_response(jsonify({'Bad Request': 'No image was provided'}), 400)
+        return make_response(jsonify({'Bad Request': 'No image was provided'}), 422)
 
     image = request.files['image']
     image_data = upload_image(image)
@@ -76,8 +82,8 @@ def create_report():
     authority = determine_report_authority(image_data["geolocation"])
     new_report = {
         "user_id": 1,
-        "description": request.form['Description'],
-        "category": request.form['Category'],
+        "description": request.form['description'],
+        "category": request.form['category'],
         "geolocation": {
             "type": "Feature",
             "geometry": {
