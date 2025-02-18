@@ -7,7 +7,6 @@ import globals as g
 
 def upload_image(image):
     
-    print(image)
     # Save the uploaded image
     image_name = image.filename
     image_path = os.path.join(g.UPLOAD_FOLDER, image_name)  # Construct the full file path
@@ -36,7 +35,7 @@ def upload_image(image):
         "geolocation": get_image_geolocation(image_path),  # Custom function to get image geolocation
         "file_size": os.path.getsize(image_path)  # File size in bytes
     }
-   
+    
     return image_data  # Return the image data as a response
 
 def delete_image(image_path):
