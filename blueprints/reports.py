@@ -46,7 +46,7 @@ def create_report():
         delete_image(image_data['url'])
         return make_response(jsonify({'Bad Request': 'Geolocation is outside Northern Ireland'}), 400)
 
-    authority = determine_report_authority(image_data["geolocation"])
+    authority = determine_report_authority(image_data["geolocation"], request.form['category'])
     new_report = {
         "user_id": int(request.form['userID']),
         "description": request.form['description'],
@@ -69,21 +69,49 @@ def create_report():
     return make_response(jsonify({'url': url}), 200)
 
 
-def determine_report_authority(geolocation):
+def determine_report_authority(geolocation, category):
     authorities_data = get_local_authorities()
-    point = Feature(geometry=Point([geolocation['Lon'], geolocation['Lat']]))
+    point = Point([geolocation['Lon'], geolocation['Lat']])
 
-    for authority in authorities_data:
+    # Define the categories each authority type handles
+    infrastructure_categories = {
+        "Potholes", "Street lighting fault", "Obstructions",
+        "Spillages", "Ironworks", "Traffic lights",
+        "Crash barrier and guard-rail", "Signs or road markings"
+    }
+
+    council_categories = {
+        "Street cleaning issue", "Missed bin collection",
+        "Abandoned vehicle", "Dangerous structure or vacant building",
+        "Pavement issue"
+    }
+
+    # Determine the relevant authority type based on the category
+    if category in infrastructure_categories:
+        relevant_authority_type = "Department for Infrastructure"
+    elif category in council_categories:
+        relevant_authority_type = "Council"
+    else:
+        return None  # Category not recognized
+
+    # Filter authorities by the relevant type
+    filtered_authorities = [
+        authority for authority in authorities_data
+        if authority['authority_type'] == relevant_authority_type
+    ]
+
+    # Check if the point is within any of the filtered authorities' areas
+    for authority in filtered_authorities:
         coords = authority['area']['coordinates']
-        
+
         # If it's a MultiPolygon, extract the first set of coordinates
         if authority['area']['type'] == 'MultiPolygon':
             polygons = [Polygon(poly[0]) for poly in coords]  # Extract outer rings
         else:  # Regular Polygon
-            polygons = [Polygon(coords[0])]  # FIXED: Extract the first set of coordinates
+            polygons = [Polygon(coords[0])]  # Extract the first set of coordinates
 
         for polygon in polygons:
-            if boolean_point_in_polygon(point, Feature(geometry=polygon)):
+            if point.within(polygon):
                 return authority['authority_name']
 
     return None
