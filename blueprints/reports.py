@@ -1,13 +1,14 @@
-from flask import Blueprint, app, jsonify, make_response, request
+import json
+from flask import Blueprint, jsonify, make_response, request
 import globals
 from bson import ObjectId
-from utils import upload_image
-from werkzeug.utils import secure_filename
-import os
+from utils import delete_image, upload_image
 import time
 from turfpy.measurement import boolean_point_in_polygon
 from geojson import Point, Feature, Polygon
-
+from validations import validate_fields
+from shapely.geometry import Point, Polygon, MultiPolygon
+from geojson import Feature
 
 reports_bp = Blueprint('reports_bp', __name__)
 reports = globals.db.reports
@@ -16,7 +17,6 @@ authorities = globals.db.authorities
 
 @reports_bp.route('/api/v1/reports', methods=['GET'])
 def get_reports():
-    
     data = []
     for report in reports.find():
         report['_id'] = str(report['_id'])
@@ -26,25 +26,39 @@ def get_reports():
 
 @reports_bp.route('/api/v1/reports', methods=['POST'])
 def create_report():
+    required_fields = ['description', 'category']
+    missing_fields = validate_fields(required_fields, request)
+    if missing_fields:
+        # logger.warning("Missing fields in registration data: %s", missing_fields)
+        return make_response(
+            jsonify({'Unprocessable Entity': 'Missing fields in JSON data.', 'missing_fields': missing_fields}), 422)
     if 'image' not in request.files:
-        # add logging
-        return make_response(jsonify({'Bad Request': 'No image was provided'}), 400)     
-      
-    image = request.files['image']        
+        return make_response(jsonify({'Unprocessable Entity': 'No image was provided'}), 422)
+
+    image = request.files['image']
     image_data = upload_image(image)
-    authority = determine_report_authority(image_data["geolocation"]) 
+    # Check if image_data is None or if geolocation is missing
+    if image_data.get("geolocation") is None:
+        delete_image(image_data['url'])
+        return make_response(jsonify({'Bad Request': 'Geolocation could not be determined'}), 400)
+
+    if not is_within_boundaries(image_data["geolocation"]):
+        delete_image(image_data['url'])
+        return make_response(jsonify({'Bad Request': 'Geolocation is outside Northern Ireland'}), 400)
+
+    authority = determine_report_authority(image_data["geolocation"], request.form['category'])
     new_report = {
-        "user_id": 1,
-        "description": request.form['Description'],
-        "category": request.form['Category'],
+        "user_id": int(request.form['userID']),
+        "description": request.form['description'],
+        "category": request.form['category'],
         "geolocation": {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
                 "coordinates": [image_data['geolocation']['Lat'], image_data['geolocation']['Lon']]
-            }           
+            }
         },
-        "authority": authority, # should be determined prior via a helper function to find out which public body is responsible
+        "authority": authority,
         "image": image_data,
         "resolved": False,
         "created_at": int(time.time())
@@ -55,17 +69,82 @@ def create_report():
     return make_response(jsonify({'url': url}), 200)
 
 
-def determine_report_authority(geolocation):
-    authorities_data = get_local_authorities()    
-    authority_name = ""
-    point = Feature(geometry=Point([geolocation['Lon'], geolocation['Lat']]))        
-    for authority in authorities_data:                            
-        polygon = Feature(geometry=Polygon(authority['area']['coordinates']))        
-        if boolean_point_in_polygon(point, polygon):                            
-            return authority['authority_name']
-    
-    
-         
+def determine_report_authority(geolocation, category):
+    authorities_data = get_local_authorities()
+    point = Point([geolocation['Lon'], geolocation['Lat']])
+
+    # Define the categories each authority type handles
+    infrastructure_categories = {
+        "Potholes", "Street lighting fault", "Obstructions",
+        "Spillages", "Ironworks", "Traffic lights",
+        "Crash barrier and guard-rail", "Signs or road markings"
+    }
+
+    council_categories = {
+        "Street cleaning issue", "Missed bin collection",
+        "Abandoned vehicle", "Dangerous structure or vacant building",
+        "Pavement issue"
+    }
+
+    # Determine the relevant authority type based on the category
+    if category in infrastructure_categories:
+        relevant_authority_type = "Department for Infrastructure"
+    elif category in council_categories:
+        relevant_authority_type = "Council"
+    else:
+        return None  # Category not recognized
+
+    # Filter authorities by the relevant type
+    filtered_authorities = [
+        authority for authority in authorities_data
+        if authority['authority_type'] == relevant_authority_type
+    ]
+
+    # Check if the point is within any of the filtered authorities' areas
+    for authority in filtered_authorities:
+        coords = authority['area']['coordinates']
+
+        # If it's a MultiPolygon, extract the first set of coordinates
+        if authority['area']['type'] == 'MultiPolygon':
+            polygons = [Polygon(poly[0]) for poly in coords]  # Extract outer rings
+        else:  # Regular Polygon
+            polygons = [Polygon(coords[0])]  # Extract the first set of coordinates
+
+        for polygon in polygons:
+            if point.within(polygon):
+                return authority['authority_name']
+
+    return None
+
+
+def is_within_boundaries(geolocation):
+    with open('data/geojsons/OSNI_Open_Data_-_Largescale_Boundaries_-_NI_Outline.geojson') as f:
+        geojson = json.load(f)
+
+    point = Point(geolocation['Lon'], geolocation['Lat'])
+    print(f"Checking point: {point}")
+
+    for feature in geojson['features']:
+        geometry = feature['geometry']
+        print(f"Checking feature type: {geometry['type']}")
+
+        if geometry['type'] == 'Polygon':
+            polygon = Polygon(geometry['coordinates'][0])
+            print(f"Polygon bounds: {polygon.bounds}")  # Debugging
+            if polygon.contains(point) or point.within(polygon):  
+                print("Point is within a Polygon.")
+                return True
+
+        elif geometry['type'] == 'MultiPolygon':
+            multipolygon = MultiPolygon([Polygon(coords[0]) for coords in geometry['coordinates']])
+            print(f"MultiPolygon bounds: {multipolygon.bounds}")  # Debugging
+            if multipolygon.contains(point) or point.within(multipolygon):
+                print("Point is within a MultiPolygon.")
+                return True
+
+    print("Point is not within any boundaries.")
+    return False
+
         
 def get_local_authorities():
     authorities_data = []

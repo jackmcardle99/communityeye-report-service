@@ -5,41 +5,62 @@ import os
 import logging
 import globals as g
 
-
 def upload_image(image):
-    # save upload
+    
+    # Save the uploaded image
     image_name = image.filename
-    image_path = image.save(os.path.join(g.UPLOAD_FOLDER, image_name))
+    image_path = os.path.join(g.UPLOAD_FOLDER, image_name)  # Construct the full file path
+    image.save(image_path)  # Save the image to the disk
     
-    # if image type is heic then convert
+    # If the image is HEIC, convert it
     if image.content_type == 'image/heic':
-        old_path = g.UPLOAD_FOLDER + image_name
-        image_name = str(image_name).replace('HEIC', 'jpg')
-        new_path = g.UPLOAD_FOLDER + image_name
-        convert_image_heic(old_path, new_path, 100)
-        image_path = new_path
-    
+        old_path = image_path  # The path where the HEIC image is saved
+        image_name = str(image_name).replace('HEIC', 'jpg')  # Change extension to jpg
+        new_path = os.path.join(g.UPLOAD_FOLDER, image_name)  # New file path for the converted image
+        convert_image_heic(old_path, new_path, 100)  # Convert to jpg
+        image_path = new_path  # Update the image path to the new jpg file
 
-    converted_image = Image.open(image_path)
+    # Open the image using PIL
+    try:
+        converted_image = Image.open(image_path)  # Open the image from the saved path
+        converted_image.load()  # Ensure the image is loaded into memory
+    except Exception as e:
+        return {"error": str(e)}, 500  # Return an error if the image can't be opened
+
+    # Get image metadata
     image_data = {
         "url": image_path,
         "image_name": image_name,
-        "dimensions": converted_image.size,
-        "geolocation": get_image_geolocation(image_path),
-        "file_size": os.path.getsize(image_path)
+        "dimensions": converted_image.size,  # Width and height
+        "geolocation": get_image_geolocation(image_path),  # Custom function to get image geolocation
+        "file_size": os.path.getsize(image_path)  # File size in bytes
     }
     
-    return image_data
-   
+    return image_data  # Return the image data as a response
+
+def delete_image(image_path):
+    """Helper function to delete the image from the server."""
+    try:
+        if os.path.exists(image_path):
+            os.remove(image_path)  # Delete the file
+            print(f"Image {image_path} deleted successfully.")
+        else:
+            print(f"Image {image_path} not found.")
+    except Exception as e:
+        print(f"Error deleting image: {e}")
+
 
 def get_image_geolocation(image_path):
-    GPSINFO_TAG = next(
-        tag for tag, name in TAGS.items() if name == "GPSInfo"
-    )
+    GPSINFO_TAG = next(tag for tag, name in TAGS.items() if name == "GPSInfo")
     image = Image.open(image_path)
     exifdata = image.getexif()
+    if not exifdata:
+        return None
+
     gpsinfo = exifdata.get_ifd(GPSINFO_TAG)
-    
+    if not gpsinfo:
+        return None
+
     return {
         'Lat': decimal_coords(gpsinfo[2], gpsinfo[1]),
         'Lon': decimal_coords(gpsinfo[4], gpsinfo[3])
