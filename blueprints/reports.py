@@ -17,7 +17,6 @@ authorities = globals.db.authorities
 
 @reports_bp.route('/api/v1/reports', methods=['GET'])
 def get_reports():
-    
     data = []
     for report in reports.find():
         report['_id'] = str(report['_id'])
@@ -34,7 +33,7 @@ def create_report():
         return make_response(
             jsonify({'Unprocessable Entity': 'Missing fields in JSON data.', 'missing_fields': missing_fields}), 422)
     if 'image' not in request.files:
-        return make_response(jsonify({'Bad Request': 'No image was provided'}), 422)
+        return make_response(jsonify({'Unprocessable Entity': 'No image was provided'}), 422)
 
     image = request.files['image']
     image_data = upload_image(image)
