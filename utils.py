@@ -49,20 +49,7 @@ def delete_image(image_path):
     except Exception as e:
         print(f"Error deleting image: {e}")
 
-   
 
-# def get_image_geolocation(image_path):
-#     GPSINFO_TAG = next(
-#         tag for tag, name in TAGS.items() if name == "GPSInfo"
-#     )
-#     image = Image.open(image_path)
-#     exifdata = image.getexif()
-#     gpsinfo = exifdata.get_ifd(GPSINFO_TAG)
-    
-#     return {
-#         'Lat': decimal_coords(gpsinfo[2], gpsinfo[1]),
-#         'Lon': decimal_coords(gpsinfo[4], gpsinfo[3])
-#     }
 def get_image_geolocation(image_path):
     GPSINFO_TAG = next(tag for tag, name in TAGS.items() if name == "GPSInfo")
     image = Image.open(image_path)
