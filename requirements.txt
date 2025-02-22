@@ -5,3 +5,5 @@ pillow_heif
 piexif
 turfpy
 Flask-Cors~=5.0.0
+azure-storage-blob
+dotenv
