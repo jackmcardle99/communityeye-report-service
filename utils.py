@@ -6,7 +6,9 @@ import logging
 import io
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 import globals as g
+from dotenv import load_dotenv
 
+load_dotenv() 
 # Initialize Azure Blob Storage client
 account = os.getenv('AZURE_STORAGE_ACCOUNT')
 sas_token = os.getenv('AZURE_STORAGE_SAS')
