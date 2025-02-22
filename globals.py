@@ -1,7 +1,7 @@
+import os
 from pymongo import MongoClient
 
-
-client = MongoClient("mongodb://127.0.0.1:27017")
-db = client.communityeye_reports
-secret_key = ''
-UPLOAD_FOLDER = 'media/'
+# Connect to MongoDB using environment variables
+client = MongoClient(os.getenv('MONGO_URI'))
+db = client[os.getenv('MONGO_DB_NAME')]
+secret_key = os.getenv('SECRET_KEY')
