@@ -154,5 +154,3 @@ def get_local_authorities():
     return authorities_data
     
 
-    
-    
