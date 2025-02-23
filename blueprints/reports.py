@@ -155,6 +155,22 @@ def delete_report(report_id):
 
     except Exception as e:
         return make_response(jsonify({'Error': str(e)}), 500)
+    
+
+@reports_bp.route('/api/v1/reports/<string:report_id>/resolve', methods=['POST'])
+def resolve_report(report_id):
+    try:
+        report_object_id = ObjectId(report_id)
+        report = reports.find_one({"_id": report_object_id})
+        if not report:
+            return make_response(jsonify({'Not Found': 'Report not found'}), 404)
+
+        # Mark the report as resolved
+        reports.update_one({"_id": report_object_id}, {"$set": {"resolved": True}})
+
+        return make_response(jsonify({'Success': 'Report marked as resolved'}), 200)
+    except Exception as e:
+        return make_response(jsonify({'Error': str(e)}), 500)
 
 
 def is_within_boundaries(geolocation):
