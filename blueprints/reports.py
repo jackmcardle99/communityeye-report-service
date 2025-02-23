@@ -39,11 +39,11 @@ def create_report():
     image_data = upload_image(image)
     # Check if image_data is None or if geolocation is missing
     if image_data.get("geolocation") is None:
-        delete_image(image_data['url'])
+        delete_image(image_data['image_name'])
         return make_response(jsonify({'Bad Request': 'Geolocation could not be determined'}), 400)
 
     if not is_within_boundaries(image_data["geolocation"]):
-        delete_image(image_data['url'])
+        delete_image(image_data['image_name'])
         return make_response(jsonify({'Bad Request': 'Geolocation is outside Northern Ireland'}), 400)
 
     authority = determine_report_authority(image_data["geolocation"], request.form['category'])
@@ -128,6 +128,33 @@ def get_reports_by_user(user_id):
 
     # Return the reports as a JSON response
     return make_response(jsonify(data), 200)
+
+
+@reports_bp.route('/api/v1/reports/<string:report_id>', methods=['DELETE'])
+def delete_report(report_id):
+    try:
+        # Convert the report_id to ObjectId
+        report_object_id = ObjectId(report_id)
+
+        # Find the report by ID
+        report = reports.find_one({"_id": report_object_id})
+        if not report:
+            return make_response(jsonify({'Not Found': 'Report not found'}), 404)
+
+        # Extract image name from the report
+        image_name = report['image']['image_name']
+
+        # Attempt to delete the image from Azure Blob Storage
+        if delete_image(image_name):
+            # If image deletion is successful, delete the report from the database
+            reports.delete_one({"_id": report_object_id})
+            return make_response(jsonify({'Success': 'Report deleted successfully'}), 201)
+        else:
+            # If image deletion fails, do not delete the report
+            return make_response(jsonify({'Error': 'Failed to delete image from Azure Blob Storage'}), 500)
+
+    except Exception as e:
+        return make_response(jsonify({'Error': str(e)}), 500)
 
 
 def is_within_boundaries(geolocation):
