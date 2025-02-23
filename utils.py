@@ -47,17 +47,31 @@ def upload_image(image):
 
     return image_data
 
+# def delete_image(image_name):
+#     """Delete the image from Azure Blob Storage."""
+#     try:
+#         blob_client = container_client.get_blob_client(image_name)
+#         if blob_client.exists():
+#             blob_client.delete_blob()
+#             print(f"Image {image_name} deleted successfully from Azure Blob Storage.")
+#         else:
+#             print(f"Image {image_name} not found in Azure Blob Storage.")
+#     except Exception as e:
+#         print(f"Error deleting image from Azure Blob Storage: {e}")
 def delete_image(image_name):
-    """Delete the image from Azure Blob Storage."""
+    """Delete the image from Azure Blob Storage and return success status."""
     try:
         blob_client = container_client.get_blob_client(image_name)
         if blob_client.exists():
             blob_client.delete_blob()
             print(f"Image {image_name} deleted successfully from Azure Blob Storage.")
+            return True
         else:
             print(f"Image {image_name} not found in Azure Blob Storage.")
+            return False
     except Exception as e:
         print(f"Error deleting image from Azure Blob Storage: {e}")
+        return False
 
 def get_image_geolocation(image):
     GPSINFO_TAG = next(tag for tag, name in TAGS.items() if name == "GPSInfo")
