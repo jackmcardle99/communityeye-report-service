@@ -66,7 +66,33 @@ def create_report():
 
     new_report_id = reports.insert_one(new_report).inserted_id
     url = "http://localhost:5000/api/v1/reports/" + str(new_report_id)
+
+    # dummy method, obviously can't email the real public bodies
+    send_email(
+        authority_name=authority,
+        report_id=str(new_report_id),
+        description=request.form['description'],
+        image_url=url
+    )
+
     return make_response(jsonify({'url': url}), 200)
+
+
+def send_email(authority_name, report_id, description, image_url):
+    # Retrieve the email address for the given authority
+    authority = authorities.find_one({"authority_name": authority_name})
+    if not authority or 'email_address' not in authority:
+        print(f"Email address not found for authority: {authority_name}")
+        return
+
+    email_address = authority['email_address']
+
+    # Simulate sending an email by printing to the console
+    subject = "New Report Assigned"
+    body = f"Report ID: {report_id}\nDescription: {description}\nImage URL: {image_url}"
+    print(f"Sending email to: {email_address}")
+    print(f"Subject: {subject}")
+    print(f"Body: {body}")
 
 
 def determine_report_authority(geolocation, category):
@@ -153,6 +179,22 @@ def delete_report(report_id):
             # If image deletion fails, do not delete the report
             return make_response(jsonify({'Error': 'Failed to delete image from Azure Blob Storage'}), 500)
 
+    except Exception as e:
+        return make_response(jsonify({'Error': str(e)}), 500)
+    
+
+@reports_bp.route('/api/v1/reports/<string:report_id>/resolve', methods=['POST'])
+def resolve_report(report_id):
+    try:
+        report_object_id = ObjectId(report_id)
+        report = reports.find_one({"_id": report_object_id})
+        if not report:
+            return make_response(jsonify({'Not Found': 'Report not found'}), 404)
+
+        # Mark the report as resolved
+        reports.update_one({"_id": report_object_id}, {"$set": {"resolved": True}})
+
+        return make_response(jsonify({'Success': 'Report marked as resolved'}), 200)
     except Exception as e:
         return make_response(jsonify({'Error': str(e)}), 500)
 
