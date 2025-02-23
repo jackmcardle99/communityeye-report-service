@@ -117,6 +117,19 @@ def determine_report_authority(geolocation, category):
     return None
 
 
+
+@reports_bp.route('/api/v1/reports/user/<int:user_id>', methods=['GET'])
+def get_reports_by_user(user_id):
+    # Find all reports for the specified user_id
+    data = []
+    for report in reports.find({"user_id": user_id}):
+        report['_id'] = str(report['_id'])
+        data.append(report)
+
+    # Return the reports as a JSON response
+    return make_response(jsonify(data), 200)
+
+
 def is_within_boundaries(geolocation):
     with open('data/geojsons/OSNI_Open_Data_-_Largescale_Boundaries_-_NI_Outline.geojson') as f:
         geojson = json.load(f)
