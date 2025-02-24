@@ -1,13 +1,24 @@
-
-from flask import Flask, app
+from flask import Flask
 from blueprints.reports import reports_bp
 from flask_cors import CORS
+from config import FLASK_DEBUG, FLASK_HOST, FLASK_PORT
+import logging
 
-app = Flask(__name__)
-CORS(app)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-app.register_blueprint(reports_bp)
-app.config['DEBUG'] = True 
+
+def create_app():
+    app = Flask(__name__)
+    CORS(app)
+    app.register_blueprint(reports_bp)
+    return app
+
+
+app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    logger.info(
+        f"Starting Flask app on {FLASK_HOST}:{FLASK_PORT} with debug={FLASK_DEBUG}"
+    )
+    app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT)

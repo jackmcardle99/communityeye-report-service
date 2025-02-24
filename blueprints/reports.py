@@ -1,238 +1,234 @@
-import json
-from flask import Blueprint, jsonify, make_response, request
-import globals
+import logging
 from bson import ObjectId
-from utils import delete_image, upload_image
+from flask import Blueprint, jsonify, make_response, request
+from config import (
+    MONGO_COLLECTION_REPORTS,
+    MONGO_COLLECTION_AUTHORITIES,
+    DB
+)
+from image_utils import delete_image, upload_image
 import time
-from turfpy.measurement import boolean_point_in_polygon
-from geojson import Point, Feature, Polygon
+from report_utils import (
+    is_within_boundaries,
+    determine_report_authority,
+    send_email,
+)
 from validations import validate_fields
-from shapely.geometry import Point, Polygon, MultiPolygon
-from geojson import Feature
-
-reports_bp = Blueprint('reports_bp', __name__)
-reports = globals.db.reports
-authorities = globals.db.authorities
 
 
-@reports_bp.route('/api/v1/reports', methods=['GET'])
-def get_reports():
-    data = []
-    for report in reports.find():
-        report['_id'] = str(report['_id'])
-        data.append(report)
-    return make_response(jsonify(data))
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-@reports_bp.route('/api/v1/reports', methods=['POST'])
-def create_report():
-    required_fields = ['description', 'category']
+reports_bp = Blueprint("reports_bp", __name__)
+reports = DB[MONGO_COLLECTION_REPORTS]
+authorities = DB[MONGO_COLLECTION_AUTHORITIES]
+
+
+@reports_bp.route("/api/v1/reports", methods=["GET"])
+def get_reports() -> make_response:
+    """
+    Retrieve all reports.
+
+    Returns:
+        make_response: JSON response containing all reports.
+    """
+    try:
+        data = []
+        for report in reports.find():
+            report["_id"] = str(report["_id"])
+            data.append(report)
+        logger.info("Successfully retrieved all reports.")
+        return make_response(jsonify(data), 200)
+    except Exception as e:
+        logger.error(f"Error retrieving reports: {e}")
+        return make_response(
+            jsonify({"Error": "Failed to retrieve reports"}), 500
+        )
+
+
+@reports_bp.route("/api/v1/reports", methods=["POST"])
+def create_report() -> make_response:
+    """
+    Create a new report.
+
+    Returns:
+        make_response: JSON response with the URL of the created report or an error message.
+    """
+    required_fields = ["description", "category"]
     missing_fields = validate_fields(required_fields, request)
     if missing_fields:
-        # logger.warning("Missing fields in registration data: %s", missing_fields)
+        logger.warning(f"Missing fields in report data: {missing_fields}")
         return make_response(
-            jsonify({'Unprocessable Entity': 'Missing fields in JSON data.', 'missing_fields': missing_fields}), 422)
-    if 'image' not in request.files:
-        return make_response(jsonify({'Unprocessable Entity': 'No image was provided'}), 422)
+            jsonify(
+                {
+                    "Unprocessable Entity": "Missing fields in JSON data.",
+                    "missing_fields": missing_fields,
+                }
+            ),
+            422,
+        )
 
-    image = request.files['image']
+    if "image" not in request.files:
+        logger.warning("No image provided in the report.")
+        return make_response(
+            jsonify({"Unprocessable Entity": "No image was provided"}), 422
+        )
+
+    image = request.files["image"]
     image_data = upload_image(image)
-    # Check if image_data is None or if geolocation is missing
+
     if image_data.get("geolocation") is None:
-        delete_image(image_data['image_name'])
-        return make_response(jsonify({'Bad Request': 'Geolocation could not be determined'}), 400)
+        delete_image(image_data["image_name"])
+        logger.warning("Geolocation could not be determined.")
+        return make_response(
+            jsonify({"Bad Request": "Geolocation could not be determined"}),
+            400,
+        )
 
     if not is_within_boundaries(image_data["geolocation"]):
-        delete_image(image_data['image_name'])
-        return make_response(jsonify({'Bad Request': 'Geolocation is outside Northern Ireland'}), 400)
+        delete_image(image_data["image_name"])
+        logger.warning("Geolocation is outside Northern Ireland.")
+        return make_response(
+            jsonify(
+                {"Bad Request": "Geolocation is outside Northern Ireland"}
+            ),
+            400,
+        )
 
-    authority = determine_report_authority(image_data["geolocation"], request.form['category'])
+    authority = determine_report_authority(
+        image_data["geolocation"], request.form["category"]
+    )
     new_report = {
-        "user_id": int(request.form['userID']),
-        "description": request.form['description'],
-        "category": request.form['category'],
+        "user_id": int(request.form["userID"]),
+        "description": request.form["description"],
+        "category": request.form["category"],
         "geolocation": {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
-                "coordinates": [image_data['geolocation']['Lat'], image_data['geolocation']['Lon']]
-            }
+                "coordinates": [
+                    image_data["geolocation"]["Lat"],
+                    image_data["geolocation"]["Lon"],
+                ],
+            },
         },
         "authority": authority,
         "image": image_data,
         "resolved": False,
-        "created_at": int(time.time())
+        "created_at": int(time.time()),
     }
 
     new_report_id = reports.insert_one(new_report).inserted_id
-    url = "http://localhost:5000/api/v1/reports/" + str(new_report_id)
+    url = f"http://localhost:5000/api/v1/reports/{str(new_report_id)}"
 
-    # dummy method, obviously can't email the real public bodies
     send_email(
         authority_name=authority,
         report_id=str(new_report_id),
-        description=request.form['description'],
-        image_url=url
+        description=request.form["description"],
+        image_url=url,
     )
 
-    return make_response(jsonify({'url': url}), 200)
+    logger.info(f"Report created successfully with ID: {new_report_id}")
+    return make_response(jsonify({"Success": url}), 201)
 
 
-def send_email(authority_name, report_id, description, image_url):
-    # Retrieve the email address for the given authority
-    authority = authorities.find_one({"authority_name": authority_name})
-    if not authority or 'email_address' not in authority:
-        print(f"Email address not found for authority: {authority_name}")
-        return
+@reports_bp.route("/api/v1/reports/user/<int:user_id>", methods=["GET"])
+def get_reports_by_user(user_id: int) -> make_response:
+    """
+    Retrieve reports for a specific user.
 
-    email_address = authority['email_address']
+    Args:
+        user_id (int): The ID of the user.
 
-    # Simulate sending an email by printing to the console
-    subject = "New Report Assigned"
-    body = f"Report ID: {report_id}\nDescription: {description}\nImage URL: {image_url}"
-    print(f"Sending email to: {email_address}")
-    print(f"Subject: {subject}")
-    print(f"Body: {body}")
-
-
-def determine_report_authority(geolocation, category):
-    authorities_data = get_local_authorities()
-    point = Point([geolocation['Lon'], geolocation['Lat']])
-
-    # Define the categories each authority type handles
-    infrastructure_categories = {
-        "Potholes", "Street lighting fault", "Obstructions",
-        "Spillages", "Ironworks", "Traffic lights",
-        "Crash barrier and guard-rail", "Signs or road markings"
-    }
-
-    council_categories = {
-        "Street cleaning issue", "Missed bin collection",
-        "Abandoned vehicle", "Dangerous structure or vacant building",
-        "Pavement issue"
-    }
-
-    # Determine the relevant authority type based on the category
-    if category in infrastructure_categories:
-        relevant_authority_type = "Department for Infrastructure"
-    elif category in council_categories:
-        relevant_authority_type = "Council"
-    else:
-        return None  # Category not recognized
-
-    # Filter authorities by the relevant type
-    filtered_authorities = [
-        authority for authority in authorities_data
-        if authority['authority_type'] == relevant_authority_type
-    ]
-
-    # Check if the point is within any of the filtered authorities' areas
-    for authority in filtered_authorities:
-        coords = authority['area']['coordinates']
-
-        # If it's a MultiPolygon, extract the first set of coordinates
-        if authority['area']['type'] == 'MultiPolygon':
-            polygons = [Polygon(poly[0]) for poly in coords]  # Extract outer rings
-        else:  # Regular Polygon
-            polygons = [Polygon(coords[0])]  # Extract the first set of coordinates
-
-        for polygon in polygons:
-            if point.within(polygon):
-                return authority['authority_name']
-
-    return None
-
-
-
-@reports_bp.route('/api/v1/reports/user/<int:user_id>', methods=['GET'])
-def get_reports_by_user(user_id):
-    # Find all reports for the specified user_id
-    data = []
-    for report in reports.find({"user_id": user_id}):
-        report['_id'] = str(report['_id'])
-        data.append(report)
-
-    # Return the reports as a JSON response
-    return make_response(jsonify(data), 200)
-
-
-@reports_bp.route('/api/v1/reports/<string:report_id>', methods=['DELETE'])
-def delete_report(report_id):
+    Returns:
+        make_response: JSON response containing the user's reports.
+    """
     try:
-        # Convert the report_id to ObjectId
-        report_object_id = ObjectId(report_id)
+        data = []
+        for report in reports.find({"user_id": user_id}):
+            report["_id"] = str(report["_id"])
+            data.append(report)
+        logger.info(f"Successfully retrieved reports for user ID: {user_id}")
+        return make_response(jsonify(data), 200)
+    except Exception as e:
+        logger.error(f"Error retrieving reports for user ID {user_id}: {e}")
+        return make_response(
+            jsonify({"Error": "Failed to retrieve reports for the user"}), 500
+        )
 
-        # Find the report by ID
+
+@reports_bp.route("/api/v1/reports/<string:report_id>", methods=["DELETE"])
+def delete_report(report_id: str) -> make_response:
+    """
+    Delete a report by its ID.
+
+    Args:
+        report_id (str): The ID of the report to delete.
+
+    Returns:
+        make_response: JSON response indicating success or failure.
+    """
+    try:
+        report_object_id = ObjectId(report_id)
         report = reports.find_one({"_id": report_object_id})
         if not report:
-            return make_response(jsonify({'Not Found': 'Report not found'}), 404)
+            logger.warning(f"Report not found for ID: {report_id}")
+            return make_response(
+                jsonify({"Not Found": "Report not found"}), 404
+            )
 
-        # Extract image name from the report
-        image_name = report['image']['image_name']
-
-        # Attempt to delete the image from Azure Blob Storage
+        image_name = report["image"]["image_name"]
         if delete_image(image_name):
-            # If image deletion is successful, delete the report from the database
             reports.delete_one({"_id": report_object_id})
-            return make_response(jsonify({'Success': 'Report deleted successfully'}), 201)
+            logger.info(f"Report deleted successfully with ID: {report_id}")
+            return make_response(
+                jsonify({"Success": "Report deleted successfully"}), 204
+            )
         else:
-            # If image deletion fails, do not delete the report
-            return make_response(jsonify({'Error': 'Failed to delete image from Azure Blob Storage'}), 500)
-
+            logger.error(
+                f"Failed to delete image from Azure Blob Storage for report ID: {report_id}"
+            )
+            return make_response(
+                jsonify(
+                    {"Error": "Failed to delete image from Azure Blob Storage"}
+                ),
+                500,
+            )
     except Exception as e:
-        return make_response(jsonify({'Error': str(e)}), 500)
-    
+        logger.error(f"Error deleting report with ID {report_id}: {e}")
+        return make_response(jsonify({"Error": "Internal Server Error"}), 500)
 
-@reports_bp.route('/api/v1/reports/<string:report_id>/resolve', methods=['POST'])
-def resolve_report(report_id):
+
+@reports_bp.route(
+    "/api/v1/reports/<string:report_id>/resolve", methods=["POST"]
+)
+def resolve_report(report_id: str) -> make_response:
+    """
+    Mark a report as resolved by its ID.
+
+    Args:
+        report_id (str): The ID of the report to resolve.
+
+    Returns:
+        make_response: JSON response indicating success or failure.
+    """
     try:
         report_object_id = ObjectId(report_id)
         report = reports.find_one({"_id": report_object_id})
         if not report:
-            return make_response(jsonify({'Not Found': 'Report not found'}), 404)
+            logger.warning(f"Report not found for ID: {report_id}")
+            return make_response(
+                jsonify({"Not Found": "Report not found"}), 404
+            )
 
-        # Mark the report as resolved
-        reports.update_one({"_id": report_object_id}, {"$set": {"resolved": True}})
-
-        return make_response(jsonify({'Success': 'Report marked as resolved'}), 200)
+        reports.update_one(
+            {"_id": report_object_id}, {"$set": {"resolved": True}}
+        )
+        logger.info(f"Report marked as resolved with ID: {report_id}")
+        return make_response(
+            jsonify({"Success": "Report marked as resolved"}), 200
+        )
     except Exception as e:
-        return make_response(jsonify({'Error': str(e)}), 500)
-
-
-def is_within_boundaries(geolocation):
-    with open('data/geojsons/OSNI_Open_Data_-_Largescale_Boundaries_-_NI_Outline.geojson') as f:
-        geojson = json.load(f)
-
-    point = Point(geolocation['Lon'], geolocation['Lat'])
-    print(f"Checking point: {point}")
-
-    for feature in geojson['features']:
-        geometry = feature['geometry']
-        print(f"Checking feature type: {geometry['type']}")
-
-        if geometry['type'] == 'Polygon':
-            polygon = Polygon(geometry['coordinates'][0])
-            print(f"Polygon bounds: {polygon.bounds}")  # Debugging
-            if polygon.contains(point) or point.within(polygon):  
-                print("Point is within a Polygon.")
-                return True
-
-        elif geometry['type'] == 'MultiPolygon':
-            multipolygon = MultiPolygon([Polygon(coords[0]) for coords in geometry['coordinates']])
-            print(f"MultiPolygon bounds: {multipolygon.bounds}")  # Debugging
-            if multipolygon.contains(point) or point.within(multipolygon):
-                print("Point is within a MultiPolygon.")
-                return True
-
-    print("Point is not within any boundaries.")
-    return False
-
-        
-def get_local_authorities():
-    authorities_data = []
-    for authority in authorities.find():
-        authority['_id'] = str(authority['_id'])
-        authorities_data.append(authority) 
-    return authorities_data
-    
-
+        logger.error(f"Error resolving report with ID {report_id}: {e}")
+        return make_response(jsonify({"Error": "Internal server error"}), 500)
