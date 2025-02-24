@@ -1,5 +1,5 @@
 from flask import Flask
-from blueprints.reports import reports_bp
+from blueprints.reports.reports import reports_bp
 from flask_cors import CORS
 from config import FLASK_DEBUG, FLASK_HOST, FLASK_PORT
 import logging
