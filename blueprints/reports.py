@@ -14,6 +14,7 @@ from report_utils import (
     send_email,
 )
 from validations import validate_fields
+from decorators import auth_required
 
 
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +27,7 @@ authorities = DB[MONGO_COLLECTION_AUTHORITIES]
 
 
 @reports_bp.route("/api/v1/reports", methods=["GET"])
+@auth_required
 def get_reports() -> make_response:
     """
     Retrieve all reports.
@@ -48,6 +50,7 @@ def get_reports() -> make_response:
 
 
 @reports_bp.route("/api/v1/reports", methods=["POST"])
+@auth_required
 def create_report() -> make_response:
     """
     Create a new report.
@@ -134,6 +137,7 @@ def create_report() -> make_response:
 
 
 @reports_bp.route("/api/v1/reports/user/<int:user_id>", methods=["GET"])
+@auth_required
 def get_reports_by_user(user_id: int) -> make_response:
     """
     Retrieve reports for a specific user.
@@ -159,6 +163,7 @@ def get_reports_by_user(user_id: int) -> make_response:
 
 
 @reports_bp.route("/api/v1/reports/<string:report_id>", methods=["DELETE"])
+@auth_required
 def delete_report(report_id: str) -> make_response:
     """
     Delete a report by its ID.
