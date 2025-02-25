@@ -133,7 +133,7 @@ def create_report() -> make_response:
     )
 
     logger.info(f"Report created successfully with ID: {new_report_id}")
-    return make_response(jsonify({"Success": url}), 201)
+    return make_response(jsonify({"url": url}), 201)
 
 
 @reports_bp.route("/api/v1/reports/user/<int:user_id>", methods=["GET"])
