@@ -1,9 +1,10 @@
 import logging
 from bson import ObjectId
-from flask import Blueprint, jsonify, make_response, request
+from flask import Blueprint, jsonify, make_response, request, g
 from config import (
     MONGO_COLLECTION_REPORTS,
     MONGO_COLLECTION_AUTHORITIES,
+    MONGO_COLLECTION_UPVOTES,
     DB
 )
 from image_utils import delete_image, upload_image
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 reports_bp = Blueprint("reports_bp", __name__)
 reports = DB[MONGO_COLLECTION_REPORTS]
 authorities = DB[MONGO_COLLECTION_AUTHORITIES]
+upvotes = DB[MONGO_COLLECTION_UPVOTES]
 
 
 @reports_bp.route("/api/v1/reports", methods=["GET"])
@@ -119,6 +121,7 @@ def create_report() -> make_response:
         "authority": authority,
         "image": image_data,
         "resolved": False,
+        "upvote_count": 0,
         "created_at": int(time.time()),
     }
 
@@ -237,3 +240,51 @@ def resolve_report(report_id: str) -> make_response:
     except Exception as e:
         logger.error(f"Error resolving report with ID {report_id}: {e}")
         return make_response(jsonify({"Error": "Internal server error"}), 500)
+
+
+@reports_bp.route("/api/v1/reports/<report_id>/upvote", methods=["POST"])
+@auth_required
+def upvote_report(report_id) -> make_response:
+    """
+    Upvote a report.
+
+    Args:
+        report_id (str): The ID of the report to upvote.
+
+    Returns:
+        make_response: JSON response indicating success or failure.
+    """
+    user_id = g.user_id
+
+    if upvotes.find_one({"user_id": user_id, "report_id": report_id}):
+        return make_response(
+            jsonify({"Conflict": "User has already upvoted this report"}),
+            409,
+        )
+
+    upvotes.insert_one({
+        "user_id": user_id,
+        "report_id": report_id,
+        "timestamp": int(time.time())
+    })
+
+
+    
+    # Increment the upvote count in the report document
+    result = reports.update_one(
+        {"_id": ObjectId(report_id)},
+        {"$inc": {"upvote_count": 1}}
+    )
+
+    if result.modified_count == 1:
+            logging.info(f"Successfully incremented upvote count for report ID: {report_id}")
+            return make_response(
+                jsonify({"Success": "Report upvoted successfully"}),
+                200,
+            )
+    else:
+        logging.error(f"Failed to increment upvote count for report ID: {report_id}")
+        return make_response(
+            jsonify({"Error": "Failed to update upvote count"}),
+            500,
+        )
