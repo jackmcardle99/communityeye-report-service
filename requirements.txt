@@ -8,3 +8,4 @@ Flask-Cors==5.0.1
 azure-storage-blob==12.24.1
 dotenv==0.9.9
 pyjwt==2.10.1
+pytest-mock
