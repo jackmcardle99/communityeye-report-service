@@ -16,7 +16,7 @@ IMAGE_URL_BASE = "https://communityeyeblob.blob.core.windows.net/reportimagestor
 USER_ID = 1
 
 def is_within_boundaries(geolocation):
-    with open('data/geojsons/OSNI_Open_Data_-_Largescale_Boundaries_-_NI_Outline.geojson') as f:
+    with open('../data/geojsons/OSNI_Open_Data_-_Largescale_Boundaries_-_NI_Outline.geojson') as f:
         geojson = json.load(f)
 
     point = Point(geolocation['Lon'], geolocation['Lat'])
@@ -62,7 +62,8 @@ def create_report(description, category, geolocation):
         "authority": authority,
         "image": image_info,
         "resolved": False,
-        "created_at": int(time.time())
+        "created_at": int(time.time()),
+        "upvote_count": 0
     }
 
     new_report_id = reports.insert_one(new_report).inserted_id

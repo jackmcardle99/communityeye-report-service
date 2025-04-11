@@ -209,8 +209,7 @@ def delete_report(report_id: str) -> make_response:
 
 
 @reports_bp.route(
-    "/api/v1/reports/<string:report_id>/resolve", methods=["POST"]
-)
+    "/api/v1/reports/<string:report_id>/resolve", methods=["POST"])
 def resolve_report(report_id: str) -> make_response:
     """
     Mark a report as resolved by its ID.
