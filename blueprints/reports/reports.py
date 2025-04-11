@@ -267,9 +267,6 @@ def upvote_report(report_id) -> make_response:
         "timestamp": int(time.time())
     })
 
-
-    
-    # Increment the upvote count in the report document
     result = reports.update_one(
         {"_id": ObjectId(report_id)},
         {"$inc": {"upvote_count": 1}}

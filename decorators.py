@@ -26,7 +26,6 @@ def auth_required(func: Callable) -> Callable:
     Returns:
         Callable: The decorated function with authentication checks.
     """
-
     @wraps(func)
     def auth_required_wrapper(*args: Any, **kwargs: Any) -> Any:
         token = request.headers.get("x-access-token")
