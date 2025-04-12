@@ -128,7 +128,7 @@ def determine_report_authority(
 
         if authority["area"]["type"] == "MultiPolygon":
             polygons = [Polygon(poly[0]) for poly in coords]
-        else:  # Regular Polygon
+        else:
             polygons = [Polygon(coords[0])]
 
         for polygon in polygons:
