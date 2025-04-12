@@ -1,3 +1,13 @@
+"""
+File: test_reports.py
+Author: Jack McArdle
+
+This file is part of CommunityEye.
+
+Email: mcardle-j9@ulster.ac.uk
+B-No: B00733578
+"""
+
 import unittest
 from unittest.mock import patch, MagicMock
 from flask import Flask

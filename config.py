@@ -1,3 +1,13 @@
+"""
+File: config.py
+Author: Jack McArdle
+
+This file is part of CommunityEye.
+
+Email: mcardle-j9@ulster.ac.uk
+B-No: B00733578
+"""
+
 from dotenv import load_dotenv
 from pymongo import MongoClient
 import os

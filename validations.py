@@ -1,3 +1,13 @@
+"""
+File: validations.py
+Author: Jack McArdle
+
+This file is part of CommunityEye.
+
+Email: mcardle-j9@ulster.ac.uk
+B-No: B00733578
+"""
+
 def validate_fields(required_fields, request) -> list:
     """
     Validates that all required fields are present in the request JSON data.
